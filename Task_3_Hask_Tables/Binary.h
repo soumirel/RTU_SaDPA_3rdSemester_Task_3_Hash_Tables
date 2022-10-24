@@ -48,59 +48,10 @@ void printBinFile(string binFileName)
 	cout << "Содержимое бинарного файла:\n";
 	while (!binFile.eof())
 	{
-		cout << cell.key_date << " " << cell.name << '\n';
+		cout << cell.selfIndexInBinaryFile << " "
+			<< cell.key_date << " " << cell.name << '\n';
 		binFile.read((char*)&cell, sizeof(cell));
 	}
-}
-
-
-void translateBinToText(string textFileName, string binFileName)
-{
-	ofstream textFile;
-	ifstream binFile;
-	textFile.open(textFileName);
-	binFile.open(binFileName, ios::in | ios::binary);
-	HashTableCell cell;
-	binFile.read((char*)&cell, sizeof(HashTableCell));
-	while (binFile.good())
-	{
-		textFile << cell.key_date << " " << cell.name;
-		binFile.read((char*)&cell, sizeof(HashTableCell));
-		if (!binFile.eof())
-		{
-			textFile << '\n';
-		}
-	}
-}
-
-
-void translateTextToBin(string textFileName, string binFileName)
-{
-	ifstream textFile;
-	ofstream binFile;
-	textFile.open(textFileName);
-	binFile.open(binFileName, ios::out | ios::binary);
-	while (!textFile.eof())
-	{
-		HashTableCell cell;
-		char name[8];
-		char key_date[6];
-		name[7] = '\0';
-		key_date[5] = '\0';
-
-		textFile.read((char*)&key_date, 5);
-		strcpy_s(cell.key_date, key_date);
-		
-		textFile.get();
-		textFile.read((char*)&name, 7);
-		strcpy_s(cell.name, name);
-
-		textFile.get();
-
-		binFile.write((char*)&cell, sizeof(HashTableCell));
-	}
-
-	textFile.close();
 	binFile.close();
 }
 
@@ -149,6 +100,16 @@ bool deleteRecordByKey(string binFileName, char recordKey[6])
 }
 
 
+void addRecord(string binFileName, char* date, char* name, int recordsAmount)
+{
+	ofstream binFile;
+	binFile.open(binFileName, ios::out | ios::binary | std::ios::app);
+	HashTableCell* cell = new HashTableCell(date, name, recordsAmount);
+	cell->isAddressOpen = false;
+	binFile.write((char*)cell, sizeof(HashTableCell));
+}
+
+
 HashTableCell getRecordByKey(string binFileName, char* recordKey)
 {
 	ifstream binFile;
@@ -185,13 +146,13 @@ int countRecordsInBin(string binFileName)
 }
 
 
-void createBinFile(string binFileName)
+void generateBinFile(string binFileName, int recordsAmount)
 {
 	ofstream binFile;
 	binFile.open(binFileName, ios::out | ios::binary);
 
-	HashTableCell currentcell;
-	for (int i = 0; i < 10; i++)
+	HashTableCell* currentCell = new HashTableCell();
+	for (int i = 0; i < recordsAmount; i++)
 	{
 		int day = getRandomInt(1, 30);
 		int month = getRandomInt(1, 12);
@@ -213,11 +174,12 @@ void createBinFile(string binFileName)
 		{
 			key_date += '0' + to_string(month);
 		}
-		strcpy_s(currentcell.key_date, key_date.c_str());
+		strcpy_s(currentCell->key_date, key_date.c_str());
 		string name = names.at(getRandomInt(0, names.size() - 1)) +
 			" " + surnames.at(getRandomInt(0, surnames.size() - 1));
-		strcpy_s(currentcell.name, name.c_str());
-		binFile.write((char*)&currentcell, sizeof(HashTableCell));
+		strcpy_s(currentCell->name, name.c_str());
+		currentCell->selfIndexInBinaryFile = i;
+		binFile.write((char*)currentCell, sizeof(HashTableCell));
 	}
 	binFile.close();
 }

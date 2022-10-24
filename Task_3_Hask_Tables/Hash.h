@@ -20,11 +20,11 @@ struct HashTableCell
 	bool isAddressOpen;
 	bool isCellDeleted;
 
-	HashTableCell(const char* key_date, const char* name)
+	HashTableCell(const char* key_date, const char* name, int index = -1)
 	{
 		strcpy_s(this->key_date, key_date);
 		strcpy_s(this->name, name);
-		selfIndexInBinaryFile = -1;
+		selfIndexInBinaryFile = index;
 		isAddressOpen = true;
 		isCellDeleted = false;
 	}
@@ -42,7 +42,7 @@ struct HashTableCell
 struct HashTable
 {
 private:
-	unsigned size;
+	unsigned size = 5;
 	unsigned closedAddressesAmount;
 	HashTableCell* table;
 
@@ -56,7 +56,9 @@ public:
 
 	char* get(const char* key);
 
-	void add(const char* key, const char* value);
+	void add(const char* key, const char* value, int indexInFile);
+
+	void add(HashTableCell* cell);
 
 	void remove(const char* key);
 
@@ -64,7 +66,7 @@ public:
 };
 
 
-HashTable::HashTable(unsigned size = 0)
+HashTable::HashTable(unsigned size = 5)
 {
 	this->size = size;
 	closedAddressesAmount = 0;
@@ -98,29 +100,52 @@ char* HashTable::get(const char* key)
 	}
 	else
 	{
-		throw std::invalid_argument("Ничего не найдено");
+		throw std::invalid_argument("Ничего не найдено\n");
 	}
 	
 }
 
 
-void HashTable::add(const char* key, const char* value)
+void HashTable::add(HashTableCell* cell)
 {
+	this->add(cell->key_date, cell->name, cell->selfIndexInBinaryFile);
+}
+
+
+void HashTable::add(const char* key, const char* value, int indexInFile)
+{
+	cout << '\n';
+
 	int startIndex = hashFunction(key, size);
 	int index = startIndex;
+	bool collisionMessage = false;
 	while (table[index].isAddressOpen == false)
 	{
+		if (!collisionMessage)
+		{
+			cout << "Произошла коллизия.\n";
+			collisionMessage = true;
+		}
 		index++;
-		index %= size;
+		if (index >= size)
+		{
+			index %= size;
+		}
 		if (startIndex == index)
 		{
 			break;
 		}
 	}
 
+	if (collisionMessage)
+	{
+		cout << "Коллизия устранена с индекса " << startIndex << '\n';
+	}
+
 	strcpy_s(table[index].key_date, key);
 	strcpy_s(table[index].name, value);
 	table[index].isAddressOpen = false;
+	table[index].selfIndexInBinaryFile = indexInFile;
 
 	closedAddressesAmount++;
 
@@ -128,14 +153,21 @@ void HashTable::add(const char* key, const char* value)
 
 	if ((closedAddressesAmount / (double)size) > 0.75)
 	{
+		cout << "\nКоэфициент нагруженности привысил 0.75.\n"
+			"Произведено увеличение таблицы вдвое,"
+			"произведено рехэширование\n\n"
+			"Логи при прихэшировании:\n";
 		closedAddressesAmount = 0;
 		this->resizeTable();
+		
 	}
 }
 
 
 void HashTable::remove(const char* key)
 {
+	cout << '\n';
+
 	int startIndex = hashFunction(key, size);
 	int index = startIndex;
 	while (strcmp(table[index].key_date, key) != 0 &&
@@ -157,7 +189,7 @@ void HashTable::remove(const char* key)
 	}
 	else
 	{
-		throw std::invalid_argument("Ничего не найдено");
+		throw std::invalid_argument("Ничего не найдено\n");
 	}
 }
 
@@ -180,6 +212,8 @@ void HashTable::resizeTable()
 			strcpy_s(newTable[index].key_date, table[i].key_date);
 			strcpy_s(newTable[index].name, table[i].name);
 			newTable[index].isAddressOpen = false;
+			newTable[index].selfIndexInBinaryFile =
+				table[i].selfIndexInBinaryFile;
 			closedAddressesAmount++;
 		}
 	}
@@ -191,8 +225,9 @@ void HashTable::resizeTable()
 void HashTable::printTable()
 {
 	int indexFieldSize = to_string(size).length();
+	int fileIndexFiledSize = to_string(closedAddressesAmount).length();
 	string horizontalDelimeter = "";
-	for (int i = 0; i < indexFieldSize + 22; i++)
+	for (int i = 0; i < indexFieldSize + fileIndexFiledSize + 25; i++)
 	{
 		horizontalDelimeter += "=";
 	}
@@ -201,16 +236,19 @@ void HashTable::printTable()
 	for (int i = 0; i < size; i++)
 	{
 		cout << "| " << setw(indexFieldSize)
-			<< i + 1 << " | ";
+			<< i << " | ";
 		if (table[i].isAddressOpen != true && table[i].isCellDeleted != true)
 		{
 			cout << table[i].key_date << " | "
-				<< table[i].name;
+				<< table[i].name << " | "
+				<< setw(fileIndexFiledSize)
+				<< table[i].selfIndexInBinaryFile;
 		}
 		else
 		{
 			cout << setw(5) << "" << " | " 
-				<< setw(7) << "";
+				<< setw(7) << "" << " | "
+				<< setw(fileIndexFiledSize) << "";
 		}
 		cout << " |" << '\n' << horizontalDelimeter << '\n';
 	}
@@ -270,7 +308,7 @@ HashTable* generateTable(int recordsAmount, int startSize)
 		}
 		string name = names.at(getRandomInt(0, names.size() - 1)) +
 			" " + surnames.at(getRandomInt(0, surnames.size() - 1));
-		newTable->add(date.c_str(), name.c_str());
+		newTable->add(date.c_str(), name.c_str(), i);
 	}
 	return newTable;
 }
@@ -284,7 +322,7 @@ void testHeshT()
 	//тест 1 - добавление элемента без коллизии
 	string test1Key = "10.10";
 	string test1Value = "Aaaa B.";
-	newTable->add(test1Key.c_str(), test1Value.c_str());
+	newTable->add(test1Key.c_str(), test1Value.c_str(), 1);
 	if (strcmp(newTable->get(test1Key.c_str()), test1Value.c_str()) != 0)
 	{
 		throw std::exception("Ошибка в: Тест 1");
@@ -293,7 +331,7 @@ void testHeshT()
 	//тест 2 - добавление элемента с возникновением коллизии
 	string test2Key = "10.20";
 	string test2Value = "Bbbb C.";
-	newTable->add(test2Key.c_str(), test2Value.c_str());
+	newTable->add(test2Key.c_str(), test2Value.c_str(), 2);
 	if (strcmp(newTable->get(test2Key.c_str()), test2Value.c_str()) != 0)
 	{
 		throw std::exception("Ошибка в: Тест 2");
@@ -302,7 +340,7 @@ void testHeshT()
 	//тест 3 - добавление элемента с возникающих рехэшированием
 	string test3Key = "20.20";
 	string test3Value = "Cccc D.";
-	newTable->add(test3Key.c_str(), test3Value.c_str());
+	newTable->add(test3Key.c_str(), test3Value.c_str(), 3);
 	if (strcmp(newTable->get(test3Key.c_str()), test3Value.c_str()) != 0
 		|| startSize * 2 != newTable->getSize())
 	{
@@ -355,7 +393,7 @@ void testHeshT()
 	//тест 8 - получение элемента, располагающегося после удалённого элемента (с одинаковыми хэшами)
 	string test8Key = "30.40";
 	string test8Value = "Dddd E.";
-	newTable->add(test8Key.c_str(), test8Value.c_str());
+	newTable->add(test8Key.c_str(), test8Value.c_str(), 4);
 	if (strcmp(newTable->get(test8Key.c_str()), test8Value.c_str()) != 0)
 	{
 		throw std::exception("Ошибка в: Тест 8");
